@@ -1,0 +1,46 @@
+{
+  "short_name": "LIBQR",
+  "name": "LIBQR",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "64x64 48x48 32x32 16x16",
+      "purpose": "any maskable monochrome",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "purpose": "any maskable monochrome",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "purpose": "any maskable monochrome",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "shortcuts": [
+    {
+      "name": "Scan",
+      "url": "scan",
+      "icons": [{ "src": "scan.svg", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [{ "name": "image", "accept": "image/*" }]
+    }
+  }
+}
