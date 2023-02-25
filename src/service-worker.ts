@@ -28,7 +28,7 @@ self.addEventListener('fetch', e => {
   } else {
     switch (new URL(e.request.url).pathname) {
       case '/share':
-        e.waitUntil((async () => await self.clients.get(e.resultingClientId).then(c => e.request.formData().then((files) => c!.postMessage({ files }))))());
+        e.waitUntil((async () => await self.clients.get(e.resultingClientId).then(c => e.request.formData().then((f) => c!.postMessage({ files: f.getAll('image') }))))());
         return e.respondWith(Response.redirect('/'));
       default:
         return

@@ -6,7 +6,7 @@ import store, { observer } from './store'
 
 const path = window.location.pathname;
 ['/scan'].includes(path) && (window.location.href = '/#' + path)
-navigator.serviceWorker.addEventListener("message", ({ data }) => store.upload(data.files.getAll('image')));
+navigator.serviceWorker.addEventListener("message", ({ data }) => store.upload(data.files));
 
 const Scan = () => {
   const ref = useRef<HTMLVideoElement>(null)
