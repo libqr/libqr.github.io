@@ -24,13 +24,13 @@ class Store {
 		navigator.mediaDevices.getUserMedia({ video: { facingMode, width: 600, height: 600 } }).then((m) => {
 			video.srcObject = m, video.play()
 			this.qreader.decodeFromVideoElement(video, (i: any) => i && (this.setInput(i.getText()), this.toggleScan()))
-		})
+		}).catch(() => runInAction(() => (this.input = 'Scanning device could not be found!', this.toggleScan())))
 	}
 	scaninit = ({ video }: { video: HTMLVideoElement }) => {
 		this.scanner = true
 		this.init()
 		this.scan(this.video = video, this.scanmode)
-		return () => this.video.srcObject.getTracks()[0].stop()
+		return () => this.video.srcObject?.getTracks()?.[0]?.stop()
 	}
 	setInput = (i: string) => {
 		this.input = i, this.qrindex = 0
