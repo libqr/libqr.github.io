@@ -10,47 +10,46 @@ class Store {
 	qrdata = ['']
 	qrsrc = ''
 	input = ''
-	video: any
+	shareAnchor: any
+	loading = false
 	scanner = false
 	scanmode = 'environment'
-
 	constructor() {
 		makeAutoObservable(this);
 	}
-	init = () => {
-		runInAction(() => (this.qrindex = 0, this.qrcode = [''], this.qrdata = [''], this.qrsrc = this.input = ''))
+	set = (o: any) => {
+		runInAction(() => Object.keys(o).forEach((k) => this[k] = o[k]))
 	}
-	scan = (video: HTMLVideoElement, facingMode: string) => {
-		navigator.mediaDevices.getUserMedia({ video: { facingMode, width: 600, height: 600 } }).then((m) => {
-			video.srcObject = m, video.play()
-			this.qreader.decodeFromVideoElement(video, (i: any) => i && (this.setInput(i.getText()), this.toggleScan()))
-		}).catch(() => runInAction(() => (this.input = 'Scanning device could not be found!', this.toggleScan())))
+	init = (o = {}) => {
+		this.set({ qrindex: 0, qrcode: [''], qrdata: [''], qrsrc: '', input: '', scanner: false, loading: false, ...o })
 	}
-	scaninit = ({ video }: { video: HTMLVideoElement }) => {
-		this.scanner = true
-		this.init()
-		this.scan(this.video = video, this.scanmode)
-		return () => this.video.srcObject?.getTracks()?.[0]?.stop()
+	scan = () => {
+		this.init({ scanner: true })
+		const promise = this.qreader.decodeFromConstraints({ video: { facingMode: this.scanmode, width: 600, height: 600 } }, document.querySelector('video')!, (i: any) => i && (this.setInput(i.getText()), this.toggleScan(0)))
+		return () => { promise.then((s) => s.stop()) }
 	}
 	setInput = (i: string) => {
-		this.input = i, this.qrindex = 0
+		this.init({ input: i })
 		if (i !== '') {
 			const qrdata = i.match(/[^]{2048}|[^]+/g)!
-			const qrcode = qrdata.map((v) => toDataURL(v, { margin: 0, scale: 16 }))
-			Promise.all(qrcode).then((code) => runInAction(() => {
-				this.qrcode = code, this.qrsrc = code[0], this.qrdata = qrdata
-			}))
+			const qrcode = qrdata.map((v) => toDataURL(v, { margin: 1, scale: 16 }))
+			Promise.all(qrcode).then((qrcode) => this.set({ qrcode, qrdata, qrsrc: qrcode[0] }))
 		} else this.qrsrc = ''
 	}
 	setIndex = (i: number) => {
-		this.qrindex = i, this.qrsrc = this.qrcode[i], this.input = this.qrdata[i]
+		this.set({ qrindex: i, qrsrc: this.qrcode[i], input: this.qrdata[i] })
 	}
-	toggleScan = () => {
-		window.location.hash = ((this.scanner = !this.scanner)) ? '/scan' : '/'
+	toggleScan = (off?: any) => {
+		if (off === 0 || this.scanner) (this.scanner = false, window.location.hash = '/')
+		else (this.scanner = true, window.location.hash = '/scan')
 	}
 	switchScan = () => {
-		this.video.srcObject.getTracks()[0].stop()
-		this.scan(this.video, this.scanmode = this.scanmode === 'environment' ? 'user' : 'environment')
+		Promise.resolve(window.location.hash = '/')
+			.then(() => this.scanmode = this.scanmode === 'environment' ? 'user' : 'environment')
+			.then(() => window.location.hash = '/scan')
+	}
+	toggleShare = (anchor = null) => {
+		this.set({ shareAnchor: this.shareAnchor ? null : anchor })
 	}
 	copy = () => {
 		navigator.clipboard.writeText(this.input)
@@ -59,54 +58,36 @@ class Store {
 		navigator.clipboard.readText().then(this.setInput)
 	}
 	upload = (files: FileList | never[]) => {
-		if (this.scanner) this.toggleScan()
 		this.init()
+		if (this.scanner) this.toggleScan()
 		for (const file of files) {
 			const reader = new FileReader();
 			reader.readAsDataURL(file);
-			reader.onload = async (e: ProgressEvent) => {
-				let img: any = document.createElement("img")
-				img.src = (e.target as FileReader).result as string
-				const decode = await this.qreader.decodeFromImageElement(img).then((d) => d.getText()).catch(() => 'invalid')
-				runInAction(() => {
-					if (this.qrcode[0]) this.qrdata.push(decode), this.qrcode.push(img.src)
-					else this.qrdata = [decode], this.qrcode = [img.src]
-					img = null, this.qrsrc = this.qrcode[0], this.input = this.qrdata[0]
-				})
-			}
+			reader.onload = (e: ProgressEvent) => Promise.resolve((e.target as FileReader).result as string).then((qrsrc) =>
+				this.qreader.decodeFromImageUrl(qrsrc).then((d) => d.getText()).catch(() => 'invalid').then((input) => this.qrcode[0]
+					? this.set({ qrcode: [...this.qrcode, qrsrc], qrdata: [...this.qrdata, input], qrsrc: this.qrcode[0], input: this.qrdata[0] })
+					: this.set({ qrcode: [qrsrc], qrdata: [input], qrsrc, input })))
 		}
 	}
 	download = () => {
-		if (!this.qrsrc) return
-		const a = document.createElement("a")
-		a.download = 'qrcode.png', a.href = this.qrsrc
-		document.body.appendChild(a)
-		a.click()
-		document.body.removeChild(a)
+		let a: HTMLAnchorElement | null = document.createElement("a")
+		if (this.qrsrc) (a!.download = 'qrcode.png', a!.href = this.qrsrc, a!.click())
+		a = null
+	}
+	__share__ = (src: string, index = 0) => {
+		const [mime, data] = src.split(",")
+		const bstr = Buffer.from(data, 'base64').toString('latin1')
+		return new File([new Uint8Array(bstr.length).map((_, i) => bstr.charCodeAt(i))], `qrcode${index}.png`, { type: mime.match(/:(.*?);/)?.[1] })
 	}
 	share = (type: string) => {
-		const O: any = {}
+		this.set({ shareAnchor: null })
+		if (!this.qrsrc) return
 		switch (type) {
-			case 'text':
-				if (!this.input) return
-				return navigator.share({ text: this.input })
-			case 'file':
-				if (!this.qrsrc) return
-				[O.mime, O.data] = this.qrsrc.split(",")
-				O.bstr = Buffer.from(O.data, 'base64').toString('latin1')
-				return navigator.share({ files: [new File([new Uint8Array(O.bstr.length).map((_, i) => O.bstr.charCodeAt(i))], 'qrcode.png', { type: O.mime.match(/:(.*?);/)?.[1] })] })
-			case 'files':
-				if (!this.qrsrc) return
-				O.files = this.qrcode.map((code, index) => {
-					const [mime, data] = code.split(",")
-					const bstr = Buffer.from(data, 'base64').toString('latin1')
-					return new File([new Uint8Array(bstr.length).map((_, i) => bstr.charCodeAt(i))], `qrcode${index}.png`, { type: mime.match(/:(.*?);/)?.[1] })
-				})
-				return navigator.share({ files: O.files })
-			default:
-				return
+			case 'text': return navigator.share({ text: this.input })
+			case 'file': return navigator.share({ files: [this.__share__(this.qrsrc)] })
+			case 'files': return navigator.share({ files: this.qrcode.map(this.__share__) })
+			default: return
 		}
 	}
 }
-
 export default new Store();
